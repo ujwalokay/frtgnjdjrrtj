@@ -1,0 +1,88 @@
+2025-11-18T15:46:55.840104296Z ==> Downloading cache...
+2025-11-18T15:46:55.885463591Z ==> Cloning from https://github.com/ujwalokay/frtgnjdjrrtj
+2025-11-18T15:46:58.091136755Z ==> Checking out commit d285806cb2e2f3b8cc85c2079cbe8db9bcdd480e in branch main
+2025-11-18T15:47:04.313245088Z ==> Downloaded 238MB in 3s. Extraction took 6s.
+2025-11-18T15:47:22.324756064Z ==> Using Node.js version 22.16.0 (default)
+2025-11-18T15:47:22.349022164Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-11-18T15:47:22.463297659Z ==> Running build command 'npm install; npm run build'...
+2025-11-18T15:47:24.137936298Z 
+2025-11-18T15:47:24.137963849Z up to date, audited 747 packages in 2s
+2025-11-18T15:47:24.137977449Z 
+2025-11-18T15:47:24.13801504Z 85 packages are looking for funding
+2025-11-18T15:47:24.138058071Z   run `npm fund` for details
+2025-11-18T15:47:24.172608603Z 
+2025-11-18T15:47:24.172630544Z 8 vulnerabilities (2 low, 5 moderate, 1 high)
+2025-11-18T15:47:24.172635014Z 
+2025-11-18T15:47:24.172644414Z To address issues that do not require attention, run:
+2025-11-18T15:47:24.172649234Z   npm audit fix
+2025-11-18T15:47:24.172655494Z 
+2025-11-18T15:47:24.172659214Z To address all issues (including breaking changes), run:
+2025-11-18T15:47:24.172663844Z   npm audit fix --force
+2025-11-18T15:47:24.172667804Z 
+2025-11-18T15:47:24.172672465Z Run `npm audit` for details.
+2025-11-18T15:47:24.338953192Z 
+2025-11-18T15:47:24.338978533Z > rest-express@1.0.0 build
+2025-11-18T15:47:24.338984503Z > npx vite build && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+2025-11-18T15:47:24.338990003Z 
+2025-11-18T15:47:24.904192033Z vite v5.4.21 building for production...
+2025-11-18T15:47:24.960483253Z transforming...
+2025-11-18T15:47:26.302848793Z 
+2025-11-18T15:47:26.302877164Z A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+2025-11-18T15:47:32.090121426Z ✓ 3453 modules transformed.
+2025-11-18T15:47:32.930415657Z rendering chunks...
+2025-11-18T15:47:32.945952807Z computing gzip size...
+2025-11-18T15:47:32.986244258Z ../dist/public/index.html                                                                            2.41 kB │ gzip:   0.93 kB
+2025-11-18T15:47:32.986407571Z ../dist/public/assets/airavoto_logo-D4oncj45.png                                                    69.20 kB
+2025-11-18T15:47:32.986464612Z ../dist/public/assets/WhatsApp Image 2025-10-22 at 11.12.35_fa6763ad_1761112003243-Co8DSVW_.jpg    121.66 kB
+2025-11-18T15:47:32.986615875Z ../dist/public/assets/index-DYjyWuFo.css                                                           128.44 kB │ gzip:  20.11 kB
+2025-11-18T15:47:32.986653906Z ../dist/public/assets/index-DK47k5VZ.js                                                          1,575.23 kB │ gzip: 423.73 kB
+2025-11-18T15:47:32.986727107Z 
+2025-11-18T15:47:32.986735028Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2025-11-18T15:47:32.986739688Z - Using dynamic import() to code-split the application
+2025-11-18T15:47:32.986744418Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2025-11-18T15:47:32.986748978Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2025-11-18T15:47:32.986971652Z ✓ built in 8.06s
+2025-11-18T15:47:33.424623804Z 
+2025-11-18T15:47:33.424649024Z   dist/index.js  245.0kb
+2025-11-18T15:47:33.424651964Z 
+2025-11-18T15:47:33.424654474Z ⚡ Done in 15ms
+2025-11-18T15:47:36.312399929Z ==> Uploading build...
+2025-11-18T15:47:48.931033399Z ==> Uploaded in 8.4s. Compression took 4.2s
+2025-11-18T15:47:48.990942213Z ==> Build successful 🎉
+2025-11-18T15:47:51.807231721Z ==> Deploying...
+2025-11-18T15:48:17.829756837Z ==> Running 'npm run start'
+2025-11-18T15:48:19.035854272Z 
+2025-11-18T15:48:19.035882063Z > rest-express@1.0.0 start
+2025-11-18T15:48:19.035887923Z > NODE_ENV=production node dist/index.js
+2025-11-18T15:48:19.035890693Z 
+2025-11-18T15:48:29.831866955Z ℹ️  Running in demo mode without database - using in-memory storage
+2025-11-18T15:48:29.930004831Z ⚠️  Google OAuth not configured - GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET required
+2025-11-18T15:48:29.930039412Z ℹ️  Use staff/admin login with username and password instead
+2025-11-18T15:48:30.042804548Z 3:48:29 PM [express] serving on port 10000
+2025-11-18T15:48:32.95914582Z ==> Your service is live 🎉
+2025-11-18T15:48:33.018304907Z ==> 
+2025-11-18T15:48:33.072316144Z ==> ///////////////////////////////////////////////////////////
+2025-11-18T15:48:33.114468701Z ==> 
+2025-11-18T15:48:33.164816919Z ==> Available at your primary URL https://frtgnjdjrrtj.onrender.com
+2025-11-18T15:48:33.217304436Z ==> 
+2025-11-18T15:48:33.267965462Z ==> ///////////////////////////////////////////////////////////
+2025-11-18T15:48:35.441231566Z AggregateError [ECONNREFUSED]: 
+2025-11-18T15:48:35.441252387Z     at /opt/render/project/src/node_modules/pg-pool/index.js:45:11
+2025-11-18T15:48:35.441257427Z     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-11-18T15:48:35.441262427Z     at async PGStore._asyncQuery (/opt/render/project/src/node_modules/connect-pg-simple/index.js:322:21)
+2025-11-18T15:49:21.73763018Z Error occurred: {
+2025-11-18T15:49:21.737654521Z   path: '/',
+2025-11-18T15:49:21.737659051Z   method: 'GET',
+2025-11-18T15:49:21.737663261Z   error: '',
+2025-11-18T15:49:21.737667691Z   stack: undefined,
+2025-11-18T15:49:21.737671501Z   userId: undefined,
+2025-11-18T15:49:21.737675561Z   ip: '10.24.4.95'
+2025-11-18T15:49:21.737679692Z }
+2025-11-18T15:49:22.139810127Z Error occurred: {
+2025-11-18T15:49:22.139852008Z   path: '/favicon.ico',
+2025-11-18T15:49:22.139858298Z   method: 'GET',
+2025-11-18T15:49:22.139864038Z   error: '',
+2025-11-18T15:49:22.139869738Z   stack: undefined,
+2025-11-18T15:49:22.139875048Z   userId: undefined,
+2025-11-18T15:49:22.139880398Z   ip: '10.25.15.131'
+2025-11-18T15:49:22.139885759Z }
