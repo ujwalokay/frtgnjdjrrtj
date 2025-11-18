@@ -2,15 +2,21 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-// For demo mode without a database, we use a dummy DATABASE_URL
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://demo:demo@localhost:5432/demo';
+// Only initialize database connection if DATABASE_URL is set
+// Otherwise, export null to prevent pg.Pool from attempting connections
+export let pool: Pool | null = null;
+export let db: ReturnType<typeof drizzle> | null = null;
 
-export const pool = new Pool({ 
-  connectionString: DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' && process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-export const db = drizzle(pool, { schema });
+if (process.env.DATABASE_URL) {
+  pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+  db = drizzle(pool, { schema });
+  console.log('✓ Database connection initialized');
+} else {
+  console.log('ℹ️  Running in demo mode without database - using in-memory storage');
+}

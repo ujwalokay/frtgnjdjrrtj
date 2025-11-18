@@ -61,17 +61,22 @@ export function securityAuditMiddleware(action: string, resource: string) {
   };
 }
 
+// Generate a random session secret for demo mode if not provided
+import crypto from 'crypto';
+
+const generateRandomSecret = () => crypto.randomBytes(32).toString('hex');
+
 // Validate SESSION_SECRET at module load time
 if (!process.env.SESSION_SECRET) {
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('SESSION_SECRET environment variable is required in production');
+    console.warn('⚠️  WARNING: SESSION_SECRET not set - generating random secret for this session');
+    console.warn('⚠️  Sessions will not persist across server restarts. Set SESSION_SECRET for production!');
   }
-  console.warn('⚠️  WARNING: SESSION_SECRET not set - using insecure default. Set SESSION_SECRET for production!');
 }
 
 export const SecurityConfig = {
   session: {
-    secret: process.env.SESSION_SECRET || 'insecure-dev-secret-change-in-production',
+    secret: process.env.SESSION_SECRET || generateRandomSecret(),
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,

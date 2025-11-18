@@ -64,11 +64,15 @@ import {
   deviceMaintenance,
   paymentLogs
 } from "@shared/schema";
-import { db } from "./db";
+import { db as dbInstance } from "./db";
 import { DemoStorage } from "./demo-storage";
 import { eq, and, gte, lte, lt, desc, inArray, isNotNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { SecurityConfig, validatePasswordStrength } from "./security";
+
+// DatabaseStorage is only instantiated when DATABASE_URL exists, so db will never be null
+// We assert non-null here to satisfy TypeScript
+const db = dbInstance!;
 
 export interface BookingStats {
   totalRevenue: number;

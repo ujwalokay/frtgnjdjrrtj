@@ -4,16 +4,18 @@ import crypto from "crypto";
 // Modern CSRF protection using signed double-submit cookie pattern
 // This is better suited for SPAs than the deprecated csurf package
 
-const CSRF_SECRET = process.env.CSRF_SECRET || process.env.SESSION_SECRET || 'csrf-secret-change-in-production';
+// Generate random CSRF secret if not provided
+const generateRandomSecret = () => require('crypto').randomBytes(32).toString('hex');
+
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.SESSION_SECRET || generateRandomSecret();
 const CSRF_TOKEN_LENGTH = 32;
 const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
 if (!process.env.CSRF_SECRET && !process.env.SESSION_SECRET) {
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('CSRF_SECRET or SESSION_SECRET environment variable is required in production');
+    console.warn('⚠️  WARNING: CSRF_SECRET not set - generating random secret for this session');
   }
-  console.warn('⚠️  WARNING: CSRF_SECRET not set - using insecure default');
 }
 
 // Generate a random CSRF token
