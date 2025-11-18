@@ -27,7 +27,6 @@ import Expenses from "@/pages/Expenses";
 import Timeline from "@/pages/Timeline";
 import History from "@/pages/History";
 import ActivityLogs from "@/pages/ActivityLogs";
-import TermsAndConditions from "@/pages/TermsAndConditions";
 import NotFound from "@/pages/not-found";
 import { CursorTrail } from "@/components/CursorTrail";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -54,7 +53,6 @@ function Router() {
       <Route path="/expenses" component={Expenses} />
       <Route path="/settings" component={Settings} />
       <Route path="/reports" component={Reports} />
-      <Route path="/terms" component={TermsAndConditions} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,4 +1,4 @@
-import { Settings, LayoutDashboard, FileText, UtensilsCrossed, CalendarClock, History, Scale, Wallet, ScrollText, BarChart3, Gamepad2, Sparkles, LogOut, Brain, Package, Receipt } from "lucide-react";
+import { Settings, LayoutDashboard, FileText, UtensilsCrossed, CalendarClock, History, Wallet, ScrollText, BarChart3, Gamepad2, Sparkles, LogOut, Brain, Package, Receipt } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/components/ThemeProvider";
@@ -124,13 +124,6 @@ const menuCategories: MenuCategory[] = [
         url: "/settings",
         icon: Settings,
         tooltip: "Configure devices, pricing, and happy hours settings",
-      },
-      {
-        title: "Terms & Conditions",
-        url: "/terms",
-        icon: Scale,
-        adminOnly: true,
-        tooltip: "View and manage service terms and conditions",
       },
     ],
   },
