@@ -1,4 +1,4 @@
-import { Settings, LayoutDashboard, FileText, UtensilsCrossed, CalendarClock, History, Wallet, ScrollText, BarChart3, Gamepad2, Sparkles, LogOut, Brain, Package, Receipt } from "lucide-react";
+import { Settings, LayoutDashboard, FileText, UtensilsCrossed, CalendarClock, History, Wallet, ScrollText, BarChart3, Gamepad2, Sparkles, Brain, Package, Receipt } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@/components/ThemeProvider";
@@ -15,7 +15,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import logoDark from "@assets/airavoto_logo.png";
 import logoLight from "@assets/airavoto_logo.png";
@@ -147,18 +146,6 @@ export function AppSidebar() {
     lowStock: lowStockCount,
   };
 
-  const handleLogout = async () => {
-    try {
-      window.location.href = "/api/auth/google/logout";
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to logout. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <Sidebar className="border-r bg-white dark:bg-gray-950">
       <SidebarContent>
@@ -238,26 +225,6 @@ export function AppSidebar() {
           );
         })}
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <SidebarMenuButton onClick={handleLogout} data-testid="button-logout">
-                    <LogOut />
-                    <span>Logout</span>
-                  </SidebarMenuButton>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>Sign out from your account and return to login page</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }
