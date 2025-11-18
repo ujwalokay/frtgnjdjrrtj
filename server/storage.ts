@@ -65,6 +65,7 @@ import {
   paymentLogs
 } from "@shared/schema";
 import { db } from "./db";
+import { DemoStorage } from "./demo-storage";
 import { eq, and, gte, lte, lt, desc, inArray, isNotNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { SecurityConfig, validatePasswordStrength } from "./security";
@@ -1829,4 +1830,7 @@ export class DatabaseStorage implements IStorage {
 
 }
 
-export const storage = new DatabaseStorage();
+// Use DemoStorage when DATABASE_URL is not set (for demo/development without a database)
+export const storage = process.env.DATABASE_URL 
+  ? new DatabaseStorage() 
+  : new DemoStorage();
