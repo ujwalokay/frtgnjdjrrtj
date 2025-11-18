@@ -161,6 +161,15 @@ app.use((req, res, next) => {
   app.use(passport.initialize());
   app.use(passport.session());
   
+  // Setup demo middleware (MUST be before routes)
+  const { demoMiddleware, enterDemoMode, exitDemoMode, checkDemoMode } = await import("./demo-middleware");
+  app.use(demoMiddleware);
+  
+  // Demo mode routes (public access)
+  app.post("/api/demo/enter", enterDemoMode);
+  app.post("/api/demo/exit", exitDemoMode);
+  app.get("/api/demo/status", checkDemoMode);
+  
   // Setup Google OAuth (independent of Replit)
   await setupGoogleAuth(app);
   

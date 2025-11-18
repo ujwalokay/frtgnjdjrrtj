@@ -17,23 +17,26 @@ declare global {
 declare module "express-session" {
   interface SessionData {
     isDemo?: boolean;
-    demoStorage?: DemoStorage;
+    demoStorageId?: string;
     user?: User;
     userId?: string;
   }
 }
+
+// In-memory storage for demo sessions (keyed by session ID)
+const demoStorages = new Map<string, DemoStorage>();
 
 // Middleware to inject demo storage into request if in demo mode
 export function demoMiddleware(req: Request, res: Response, next: NextFunction) {
   // Check if this is a demo session
   const isDemo = req.session?.isDemo === true;
   
-  if (isDemo) {
-    // Create or retrieve demo storage for this session
-    if (!req.session.demoStorage) {
-      req.session.demoStorage = new DemoStorage();
+  if (isDemo && req.session.demoStorageId) {
+    // Retrieve or create demo storage for this session
+    if (!demoStorages.has(req.session.demoStorageId)) {
+      demoStorages.set(req.session.demoStorageId, new DemoStorage());
     }
-    req.storage = req.session.demoStorage;
+    req.storage = demoStorages.get(req.session.demoStorageId)!;
     req.isDemo = true;
   } else {
     // Use production storage
@@ -50,9 +53,13 @@ export function enterDemoMode(req: Request, res: Response) {
     return res.status(500).json({ message: "Session not available" });
   }
   
+  // Create unique storage ID for this session
+  const storageId = `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   // Create new demo storage for this session
   req.session.isDemo = true;
-  req.session.demoStorage = new DemoStorage();
+  req.session.demoStorageId = storageId;
+  demoStorages.set(storageId, new DemoStorage());
   
   // Set demo user in session
   req.session.user = {
@@ -82,8 +89,13 @@ export function exitDemoMode(req: Request, res: Response) {
     return res.status(500).json({ message: "Session not available" });
   }
   
+  // Clean up demo storage
+  if (req.session.demoStorageId) {
+    demoStorages.delete(req.session.demoStorageId);
+  }
+  
   req.session.isDemo = false;
-  req.session.demoStorage = undefined;
+  req.session.demoStorageId = undefined;
   req.session.user = undefined;
   
   res.json({ success: true, message: "Demo mode exited" });

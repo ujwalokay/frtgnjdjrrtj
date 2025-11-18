@@ -123,6 +123,18 @@ export async function logoutHandler(req: Request, res: Response) {
 }
 
 export async function getCurrentUserHandler(req: Request, res: Response) {
+  // Check if in demo mode
+  if (req.session.isDemo && req.session.user) {
+    return res.json({
+      id: req.session.user.id,
+      username: req.session.user.username,
+      role: req.session.user.role,
+      onboardingCompleted: true,
+      twoStepComplete: true,
+      isDemo: true,
+    });
+  }
+  
   // Check if user is authenticated via staff/admin login
   if (req.session.userId) {
     try {
@@ -158,14 +170,19 @@ export async function getCurrentUserHandler(req: Request, res: Response) {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Require staff/admin login (Google OAuth is optional)
-  if (!req.session.userId) {
-    return res.status(401).json({ message: "Authentication required" });
+  // Allow demo mode OR staff/admin login
+  if (req.session.isDemo || req.session.userId) {
+    return next();
   }
-  next();
+  return res.status(401).json({ message: "Authentication required" });
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  // Demo mode has admin access
+  if (req.session.isDemo) {
+    return next();
+  }
+  
   if (!req.session.userId) {
     return res.status(401).json({ message: "Authentication required" });
   }
@@ -176,6 +193,11 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireAdminOrStaff(req: Request, res: Response, next: NextFunction) {
+  // Demo mode has staff access
+  if (req.session.isDemo) {
+    return next();
+  }
+  
   if (!req.session.userId) {
     return res.status(401).json({ message: "Authentication required" });
   }

@@ -224,23 +224,39 @@ function App() {
   useKeyboardShortcuts(globalShortcuts);
 
   useEffect(() => {
-    // Check if user is already authenticated via session
+    // Check if user is already authenticated or enter demo mode
     const checkAuth = async () => {
       try {
-        const response = await fetch("/api/auth/me", {
+        // First check if already authenticated
+        const authResponse = await fetch("/api/auth/me", {
           credentials: "include"
         });
-        if (response.ok) {
-          const userData = await response.json();
+        
+        if (authResponse.ok) {
+          const userData = await authResponse.json();
           
           // Only grant full access if BOTH Google and staff/admin login are complete
           if (userData.twoStepComplete && userData.id) {
             setUser(userData);
             setIsAuthenticated(true);
-          } else {
-            // Google verified but needs staff/admin login, or not authenticated
-            setShowLogin(true);
+            return;
           }
+        }
+        
+        // Not authenticated, enter demo mode automatically
+        const demoResponse = await fetch("/api/demo/enter", {
+          method: "POST",
+          credentials: "include"
+        });
+        
+        if (demoResponse.ok) {
+          const demoData = await demoResponse.json();
+          setUser(demoData.user);
+          setIsAuthenticated(true);
+          toast({
+            title: "Demo Mode",
+            description: "You're exploring Airavoto Gaming POS in demo mode with sample data",
+          });
         } else {
           setShowLogin(true);
         }
@@ -249,7 +265,7 @@ function App() {
       }
     };
     checkAuth();
-  }, []);
+  }, [toast]);
 
   if (showSplash) {
     return (
