@@ -265,7 +265,7 @@ function App() {
                       <Alert className="mx-3 mt-3 sm:mx-4 sm:mt-4 md:mx-6 md:mt-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900" data-testid="alert-demo-mode">
                         <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <AlertDescription className="text-blue-800 dark:text-blue-300">
-                          <strong>Demo Mode:</strong> This application uses in-memory storage. History and Report pages are disabled as they require a real-time database connection.
+                          <strong>Demo Mode:</strong> This application uses in-memory storage. Any entries you make will not be added to History and Report pages as they require a real-time database connection.
                         </AlertDescription>
                       </Alert>
                       <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
