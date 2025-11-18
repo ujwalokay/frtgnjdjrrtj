@@ -9,8 +9,9 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TourProvider, useTour } from "@/contexts/TourContext";
-import { Lock, Sparkles, Keyboard } from "lucide-react";
+import { Lock, Sparkles, Keyboard, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLocation } from "wouter";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
@@ -261,6 +262,12 @@ function App() {
                           </Button>
                         </div>
                       </header>
+                      <Alert className="mx-3 mt-3 sm:mx-4 sm:mt-4 md:mx-6 md:mt-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900" data-testid="alert-demo-mode">
+                        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <AlertDescription className="text-blue-800 dark:text-blue-300">
+                          <strong>Demo Mode:</strong> This application uses in-memory storage. History and Report pages are disabled as they require a real-time database connection.
+                        </AlertDescription>
+                      </Alert>
                       <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
                         <Router />
                       </main>
