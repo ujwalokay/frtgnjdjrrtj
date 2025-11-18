@@ -19,30 +19,50 @@ declare module "express-session" {
     isDemo?: boolean;
     demoStorageId?: string;
     user?: User;
-    userId?: string;
   }
 }
 
 // In-memory storage for demo sessions (keyed by session ID)
 const demoStorages = new Map<string, DemoStorage>();
 
-// Middleware to inject demo storage into request if in demo mode
+// Middleware to inject session-scoped storage into every request (auto-demo mode)
 export function demoMiddleware(req: Request, res: Response, next: NextFunction) {
-  // Check if this is a demo session
-  const isDemo = req.session?.isDemo === true;
-  
-  if (isDemo && req.session.demoStorageId) {
-    // Retrieve or create demo storage for this session
-    if (!demoStorages.has(req.session.demoStorageId)) {
-      demoStorages.set(req.session.demoStorageId, new DemoStorage());
-    }
-    req.storage = demoStorages.get(req.session.demoStorageId)!;
-    req.isDemo = true;
-  } else {
-    // Use production storage
-    req.storage = productionStorage;
-    req.isDemo = false;
+  // Auto-initialize demo mode for all sessions
+  if (!req.session) {
+    console.error("Session not available in demoMiddleware");
+    return next();
   }
+
+  // Initialize demo storage if not already done
+  if (!req.session.demoStorageId) {
+    const storageId = `demo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    req.session.demoStorageId = storageId;
+    req.session.isDemo = true;
+    
+    // Set default demo user (admin role for full access)
+    req.session.user = {
+      id: "guest-" + storageId,
+      email: "guest@airavotogaming.com",
+      firstName: "Guest",
+      lastName: "User",
+      profileImageUrl: null,
+      username: "Guest",
+      passwordHash: null,
+      role: "admin", // Admin role for full access without auth
+      onboardingCompleted: 1,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    // userId is already in req.session.user.id
+  }
+
+  // Retrieve or create demo storage for this session
+  if (!demoStorages.has(req.session.demoStorageId)) {
+    demoStorages.set(req.session.demoStorageId, new DemoStorage());
+  }
+  
+  req.storage = demoStorages.get(req.session.demoStorageId)!;
+  req.isDemo = true;
   
   next();
 }

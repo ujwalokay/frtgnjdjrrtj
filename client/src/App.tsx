@@ -27,14 +27,7 @@ import Timeline from "@/pages/Timeline";
 import History from "@/pages/History";
 import ActivityLogs from "@/pages/ActivityLogs";
 import TermsAndConditions from "@/pages/TermsAndConditions";
-import PublicStatus from "@/pages/PublicStatus";
-import Home from "@/pages/Home";
-import ConsumerGallery from "@/pages/ConsumerGallery";
-import ConsumerFacilities from "@/pages/ConsumerFacilities";
-import ConsumerGames from "@/pages/ConsumerGames";
 import NotFound from "@/pages/not-found";
-import Login from "@/pages/Login";
-import { ConsumerNav } from "@/components/ConsumerNav";
 import { CursorTrail } from "@/components/CursorTrail";
 import { SplashScreen } from "@/components/SplashScreen";
 import { NetworkAlert } from "@/components/NetworkAlert";
@@ -73,42 +66,28 @@ interface User {
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [showLogin, setShowLogin] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const { showAlert, handleRefresh, handleDismiss } = useNetworkMonitor();
 
+  // No authentication - everyone is admin
+  const user: User = {
+    id: "guest",
+    username: "Guest",
+    role: "admin"
+  };
+
   const style = {
     "--sidebar-width": "16rem",
   };
 
-  const handleLoginSuccess = (userData: User) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    setShowLogin(false);
-  };
-
   const handleLock = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      setUser(null);
-      setIsAuthenticated(false);
-      setShowLogin(true);
-      toast({
-        title: "Locked",
-        description: "Please login again to continue",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to logout",
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "No Authentication",
+      description: "Authentication has been disabled for this application",
+    });
   };
 
 
@@ -223,94 +202,10 @@ function App() {
   // Register global shortcuts
   useKeyboardShortcuts(globalShortcuts);
 
-  useEffect(() => {
-    // Check if user is already authenticated or enter demo mode
-    const checkAuth = async () => {
-      try {
-        // First check if already authenticated
-        const authResponse = await fetch("/api/auth/me", {
-          credentials: "include"
-        });
-        
-        if (authResponse.ok) {
-          const userData = await authResponse.json();
-          
-          // Only grant full access if BOTH Google and staff/admin login are complete
-          if (userData.twoStepComplete && userData.id) {
-            setUser(userData);
-            setIsAuthenticated(true);
-            return;
-          }
-        }
-        
-        // Not authenticated, enter demo mode automatically
-        const demoResponse = await fetch("/api/demo/enter", {
-          method: "POST",
-          credentials: "include"
-        });
-        
-        if (demoResponse.ok) {
-          const demoData = await demoResponse.json();
-          setUser(demoData.user);
-          setIsAuthenticated(true);
-          toast({
-            title: "Demo Mode",
-            description: "You're exploring Airavoto Gaming POS in demo mode with sample data",
-          });
-        } else {
-          setShowLogin(true);
-        }
-      } catch (error) {
-        setShowLogin(true);
-      }
-    };
-    checkAuth();
-  }, [toast]);
-
   if (showSplash) {
     return (
       <ThemeProvider>
         <SplashScreen onComplete={() => setShowSplash(false)} />
-      </ThemeProvider>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Switch>
-              <Route path="/status" component={PublicStatus} />
-              <Route path="/analytics" component={Analytics} />
-              <Route path="/history" component={History} />
-              <Route path="/home">
-                <ConsumerNav />
-                <Home />
-              </Route>
-              <Route path="/gallery">
-                <ConsumerNav />
-                <ConsumerGallery />
-              </Route>
-              <Route path="/facilities">
-                <ConsumerNav />
-                <ConsumerFacilities />
-              </Route>
-              <Route path="/games">
-                <ConsumerNav />
-                <ConsumerGames />
-              </Route>
-              <Route path="/staff">
-                <Login onLoginSuccess={handleLoginSuccess} />
-              </Route>
-              <Route>
-                <Login onLoginSuccess={handleLoginSuccess} />
-              </Route>
-            </Switch>
-            <CursorTrail />
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
       </ThemeProvider>
     );
   }

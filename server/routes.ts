@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { requireAuth, requireAdmin, requireAdminOrStaff, webhookLimiter, publicApiLimiter, sensitiveOperationLimiter, dataExportLimiter } from "./auth";
+import { webhookLimiter, publicApiLimiter, sensitiveOperationLimiter, dataExportLimiter } from "./auth";
 import { retentionService } from "./retention";
 import { cleanupScheduler } from "./scheduler";
 import { fetchNeonStorageMetrics } from "./neon-metrics";
@@ -34,16 +34,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  app.get("/api/bookings", requireAuth, async (req, res) => {
+  app.get("/api/bookings", publicApiLimiter, async (req, res) => {
     try {
-      const bookings = await storage.getAllBookings();
+      const bookings = await req.storage.getAllBookings();
       res.json(bookings);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/bookings/available-seats", requireAuth, async (req, res) => {
+  app.get("/api/bookings/available-seats", publicApiLimiter, async (req, res) => {
     try {
       const { date, timeSlot, durationMinutes } = req.query;
       
@@ -59,8 +59,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       requestStart.setHours(startHour, startMin, 0, 0);
       const requestEnd = new Date(requestStart.getTime() + parseInt(durationMinutes as string) * 60 * 1000);
 
-      const allBookings = await storage.getAllBookings();
-      const deviceConfigs = await storage.getAllDeviceConfigs();
+      const allBookings = await req.storage.getAllBookings();
+      const deviceConfigs = await req.storage.getAllDeviceConfigs();
       
       const availableSeats = deviceConfigs.map(config => {
         const occupiedSeats = allBookings
@@ -97,9 +97,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/bookings/active", requireAuth, async (req, res) => {
+  app.get("/api/bookings/active", publicApiLimiter, async (req, res) => {
     try {
-      const bookings = await storage.getActiveBookings();
+      const bookings = await req.storage.getActiveBookings();
       res.json(bookings);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  app.post("/api/bookings", requireAuth, async (req, res) => {
+  app.post("/api/bookings", publicApiLimiter, async (req, res) => {
     try {
       const booking = insertBookingSchema.parse(req.body);
       
@@ -117,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bonus = req.body.bonus || null;
       
       // Validate that the seat is not already booked for this time slot
-      const allBookings = await storage.getAllBookings();
+      const allBookings = await req.storage.getAllBookings();
       const requestStart = new Date(booking.startTime);
       const requestEnd = new Date(booking.endTime);
       
@@ -218,13 +218,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const created = await storage.createBooking(bookingData);
+      const created = await req.storage.createBooking(bookingData);
       
       // Increment promotion usage counter and log activity
       if (appliedPromotion) {
-        const userId = req.session.userId;
-        const username = req.session.username;
-        const userRole = req.session.role;
+        const userId = req.session.user?.id;
+        const username = req.session.user?.username;
+        const userRole = req.session.user?.role;
         
         if (userId && username && userRole) {
           const startTime = new Date(created.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -232,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Handle manual discount
           if (appliedPromotion.type === 'manual_discount' && appliedPromotion.savingsAmount) {
-            await storage.createActivityLog({
+            await req.storage.createActivityLog({
               userId,
               username,
               userRole,
@@ -244,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           // Handle manual free hours
           else if (appliedPromotion.type === 'manual_bonus' && appliedPromotion.hoursGiven) {
-            await storage.createActivityLog({
+            await req.storage.createActivityLog({
               userId,
               username,
               userRole,
@@ -260,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Deduct stock for food orders
       if (created.foodOrders && created.foodOrders.length > 0) {
         for (const order of created.foodOrders) {
-          await storage.adjustStock(order.foodId, order.quantity, 'remove');
+          await req.storage.adjustStock(order.foodId, order.quantity, 'remove');
         }
       }
       
@@ -270,11 +270,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/bookings/:id", requireAuth, async (req, res) => {
+  app.patch("/api/bookings/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const existingBooking = await storage.getBooking(id);
-      const updated = await storage.updateBooking(id, req.body);
+      const existingBooking = await req.storage.getBooking(id);
+      const updated = await req.storage.updateBooking(id, req.body);
       if (!updated) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -310,13 +310,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const diff = newQty - oldQty;
           if (diff > 0) {
             // New order or quantity increased - deduct the difference
-            const result = await storage.adjustStock(foodId, diff, 'remove');
+            const result = await req.storage.adjustStock(foodId, diff, 'remove');
             if (!result || result.currentStock === 0) {
               console.warn(`Warning: Stock for food item ${foodId} may be insufficient`);
             }
           } else if (diff < 0) {
             // Quantity decreased - add back the difference
-            await storage.adjustStock(foodId, Math.abs(diff), 'add');
+            await req.storage.adjustStock(foodId, Math.abs(diff), 'add');
           }
         }
         
@@ -324,7 +324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const [foodId, oldQty] of Array.from(oldOrdersMap.entries())) {
           if (!newOrdersMap.has(foodId)) {
             // Order was removed - add stock back
-            await storage.adjustStock(foodId, oldQty, 'add');
+            await req.storage.adjustStock(foodId, oldQty, 'add');
           }
         }
       }
@@ -335,7 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/bookings/:id/change-seat", requireAuth, async (req, res) => {
+  app.patch("/api/bookings/:id/change-seat", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
       const { newSeatName } = req.body;
@@ -344,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "New seat name is required" });
       }
 
-      const booking = await storage.getBooking(id);
+      const booking = await req.storage.getBooking(id);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -357,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Cannot change to a different category" });
       }
 
-      const allBookings = await storage.getAllBookings();
+      const allBookings = await req.storage.getAllBookings();
       const conflictingBooking = allBookings.find(b => 
         b.id !== id &&
         b.seatName === newSeatName &&
@@ -372,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const newSeatNumber = parseInt(newSeatName.split('-')[1]);
       
-      const updated = await storage.updateBooking(id, {
+      const updated = await req.storage.updateBooking(id, {
         seatName: newSeatName,
         seatNumber: newSeatNumber,
       });
@@ -381,11 +381,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Failed to update booking" });
       }
 
-      if (req.session.userId && req.session.username && req.session.role) {
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'booking',
           entityId: id,
@@ -399,15 +399,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/bookings/:id", requireAuth, async (req, res) => {
+  app.delete("/api/bookings/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const userRole = req.session.role;
-      const userId = req.session.userId;
-      const username = req.session.username;
+      const userRole = req.session.user?.role;
+      const userId = req.session.user?.id;
+      const username = req.session.user?.username;
       
       // Get the booking for logging
-      const bookings = await storage.getAllBookings();
+      const bookings = await req.storage.getAllBookings();
       const booking = bookings.find(b => b.id === id);
       
       if (!booking) {
@@ -415,7 +415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Both admin and staff can delete any booking
-      const deleted = await storage.deleteBooking(id);
+      const deleted = await req.storage.deleteBooking(id);
       if (!deleted) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `, ${booking.foodOrders.length} food items ordered`
           : '';
         
-        await storage.createActivityLog({
+        await req.storage.createActivityLog({
           userId,
           username,
           userRole,
@@ -445,16 +445,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/bookings/archive", requireAuth, async (req, res) => {
+  app.post("/api/bookings/archive", publicApiLimiter, async (req, res) => {
     try {
-      const count = await storage.moveBookingsToHistory();
+      const count = await req.storage.moveBookingsToHistory();
       res.json({ success: true, count });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/bookings/payment-method", sensitiveOperationLimiter, requireAuth, async (req, res) => {
+  app.post("/api/bookings/payment-method", sensitiveOperationLimiter, publicApiLimiter, async (req, res) => {
     try {
       const { bookingIds, paymentMethod } = req.body;
       
@@ -466,14 +466,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Valid payment method is required (cash or upi_online)" });
       }
       
-      const count = await storage.updatePaymentMethod(bookingIds, paymentMethod);
+      const count = await req.storage.updatePaymentMethod(bookingIds, paymentMethod);
       res.json({ success: true, count });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/bookings/payment-status", sensitiveOperationLimiter, requireAuth, async (req, res) => {
+  app.post("/api/bookings/payment-status", sensitiveOperationLimiter, publicApiLimiter, async (req, res) => {
     try {
       const { bookingIds, paymentStatus, paymentMethod } = req.body;
       
@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const userId = (req.user as any)?.id || 'unknown';
       
-      const result = await storage.updatePaymentStatus(bookingIds, paymentStatus, paymentMethod || null, userId);
+      const result = await req.storage.updatePaymentStatus(bookingIds, paymentStatus, paymentMethod || null, userId);
       
       if (paymentStatus === "paid" && result.bookings.length > 0) {
         for (const booking of result.bookings) {
@@ -513,7 +513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/bookings/split-payment", sensitiveOperationLimiter, requireAuth, async (req, res) => {
+  app.post("/api/bookings/split-payment", sensitiveOperationLimiter, publicApiLimiter, async (req, res) => {
     try {
       const { bookingIds, cashAmount, upiAmount } = req.body;
       
@@ -575,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           remainingUpi -= bookingUpi;
         }
         
-        const updated = await storage.updateBooking(booking.id, {
+        const updated = await req.storage.updateBooking(booking.id, {
           paymentMethod: "split",
           cashAmount: bookingCash.toFixed(2),
           upiAmount: bookingUpi.toFixed(2),
@@ -600,16 +600,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/booking-history", requireAuth, async (req, res) => {
+  app.get("/api/booking-history", publicApiLimiter, async (req, res) => {
     try {
-      const history = await storage.getAllBookingHistory();
+      const history = await req.storage.getAllBookingHistory();
       res.json(history);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/reports/stats", requireAuth, async (req, res) => {
+  app.get("/api/reports/stats", publicApiLimiter, async (req, res) => {
     try {
       const period = req.query.period as string || "daily";
       const customStartDate = req.query.startDate as string;
@@ -644,14 +644,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const stats = await storage.getBookingStats(startDate, endDate);
+      const stats = await req.storage.getBookingStats(startDate, endDate);
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/reports/history", requireAuth, async (req, res) => {
+  app.get("/api/reports/history", publicApiLimiter, async (req, res) => {
     try {
       const period = req.query.period as string || "daily";
       const customStartDate = req.query.startDate as string;
@@ -686,14 +686,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const bookingHistory = await storage.getBookingHistory(startDate, endDate);
+      const bookingHistory = await req.storage.getBookingHistory(startDate, endDate);
       res.json(bookingHistory);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/reports/retention-metrics", requireAuth, async (req, res) => {
+  app.get("/api/reports/retention-metrics", publicApiLimiter, async (req, res) => {
     try {
       const period = (req.query.period as 'daily' | 'weekly' | 'monthly') || "monthly";
       const months = parseInt(req.query.months as string) || 6;
@@ -705,20 +705,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       startDate.setMonth(now.getMonth() - months);
       startDate.setHours(0, 0, 0, 0);
 
-      const metrics = await storage.getRetentionMetrics(startDate, endDate, period);
+      const metrics = await req.storage.getRetentionMetrics(startDate, endDate, period);
       res.json(metrics);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/analytics/usage", requireAuth, async (req, res) => {
+  app.get("/api/analytics/usage", publicApiLimiter, async (req, res) => {
     try {
       const timeRange = req.query.timeRange as string || "today";
-      const allBookings = await storage.getAllBookings();
+      const allBookings = await req.storage.getAllBookings();
       // Filter for walk-in bookings only
       const bookings = allBookings.filter(b => b.bookingType.includes("walk-in"));
-      const deviceConfigs = await storage.getAllDeviceConfigs();
+      const deviceConfigs = await req.storage.getAllDeviceConfigs();
       const now = new Date();
       
       // Calculate time range dates
@@ -778,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Get today's walk-in bookings from historical bookings (raw records with startTime, only allowed statuses)
-      const allHistoricalBookings = await storage.getAllBookingHistory();
+      const allHistoricalBookings = await req.storage.getAllBookingHistory();
       const todayHistoricalBookings = allHistoricalBookings.filter(b => {
         const start = new Date(b.startTime);
         const isAllowedStatus = allowedStatuses.includes(b.status);
@@ -865,30 +865,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/device-config", requireAuth, async (req, res) => {
+  app.get("/api/device-config", publicApiLimiter, async (req, res) => {
     try {
-      const configs = await storage.getAllDeviceConfigs();
+      const configs = await req.storage.getAllDeviceConfigs();
       res.json(configs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/device-config", requireAdmin, async (req, res) => {
+  app.post("/api/device-config", publicApiLimiter, async (req, res) => {
     try {
       const config = insertDeviceConfigSchema.parse(req.body);
-      const saved = await storage.upsertDeviceConfig(config);
+      const saved = await req.storage.upsertDeviceConfig(config);
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const seatList = config.seats && config.seats.length > 0 
           ? `Seats: ${config.seats.join(', ')}` 
           : `${config.count} seats (auto-numbered)`;
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'device-config',
           entityId: saved.id,
@@ -902,16 +902,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/pricing-config", requireAuth, async (req, res) => {
+  app.get("/api/pricing-config", publicApiLimiter, async (req, res) => {
     try {
-      const configs = await storage.getAllPricingConfigs();
+      const configs = await req.storage.getAllPricingConfigs();
       res.json(configs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/pricing-config", requireAdmin, async (req, res) => {
+  app.post("/api/pricing-config", publicApiLimiter, async (req, res) => {
     try {
       const { category, configs } = req.body;
       if (!category || !Array.isArray(configs)) {
@@ -919,16 +919,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validatedConfigs = configs.map(c => insertPricingConfigSchema.parse({ ...c, category }));
-      const saved = await storage.upsertPricingConfigs(category, validatedConfigs);
+      const saved = await req.storage.upsertPricingConfigs(category, validatedConfigs);
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const priceDetails = configs.map(c => `${c.duration}: ₹${c.price}${c.personCount > 1 ? ` (${c.personCount} persons)` : ''}`).join(', ');
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'pricing-config',
           entityId: category,
@@ -942,36 +942,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/device-config/:category", requireAdmin, async (req, res) => {
+  app.delete("/api/device-config/:category", publicApiLimiter, async (req, res) => {
     try {
       const { category } = req.params;
-      await storage.deleteDeviceConfig(category);
+      await req.storage.deleteDeviceConfig(category);
       res.json({ success: true, message: `Deleted device config for ${category}` });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.delete("/api/pricing-config/:category", requireAdmin, async (req, res) => {
+  app.delete("/api/pricing-config/:category", publicApiLimiter, async (req, res) => {
     try {
       const { category } = req.params;
-      await storage.deletePricingConfig(category);
+      await req.storage.deletePricingConfig(category);
       res.json({ success: true, message: `Deleted pricing config for ${category}` });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/happy-hours-config", requireAuth, async (req, res) => {
+  app.get("/api/happy-hours-config", publicApiLimiter, async (req, res) => {
     try {
-      const configs = await storage.getAllHappyHoursConfigs();
+      const configs = await req.storage.getAllHappyHoursConfigs();
       res.json(configs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/happy-hours-config", requireAdmin, async (req, res) => {
+  app.post("/api/happy-hours-config", publicApiLimiter, async (req, res) => {
     try {
       const { category, configs } = req.body;
       if (!category || !Array.isArray(configs)) {
@@ -979,17 +979,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validatedConfigs = configs.map(c => insertHappyHoursConfigSchema.parse({ ...c, category }));
-      const saved = await storage.upsertHappyHoursConfigs(category, validatedConfigs);
+      const saved = await req.storage.upsertHappyHoursConfigs(category, validatedConfigs);
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const timeSlots = configs.map(c => `${c.startTime}-${c.endTime} (${c.enabled ? 'enabled' : 'disabled'})`).join(', ');
         const activeCount = configs.filter(c => c.enabled).length;
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'happy-hours-config',
           entityId: category,
@@ -1003,10 +1003,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/happy-hours-config/:category", requireAdmin, async (req, res) => {
+  app.delete("/api/happy-hours-config/:category", publicApiLimiter, async (req, res) => {
     try {
       const { category } = req.params;
-      await storage.deleteHappyHoursConfig(category);
+      await req.storage.deleteHappyHoursConfig(category);
       res.json({ success: true, message: `Deleted happy hours config for ${category}` });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1016,7 +1016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/happy-hours-active/:category", publicApiLimiter, async (req, res) => {
     try {
       const { category } = req.params;
-      const isActive = await storage.isHappyHoursActive(category);
+      const isActive = await req.storage.isHappyHoursActive(category);
       res.json({ active: isActive });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1032,23 +1032,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "timeSlot query parameter is required" });
       }
       
-      const isActive = await storage.isHappyHoursActiveForTime(category, timeSlot);
+      const isActive = await req.storage.isHappyHoursActiveForTime(category, timeSlot);
       res.json({ active: isActive });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/happy-hours-pricing", requireAuth, async (req, res) => {
+  app.get("/api/happy-hours-pricing", publicApiLimiter, async (req, res) => {
     try {
-      const configs = await storage.getAllHappyHoursPricing();
+      const configs = await req.storage.getAllHappyHoursPricing();
       res.json(configs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/happy-hours-pricing", requireAdmin, async (req, res) => {
+  app.post("/api/happy-hours-pricing", publicApiLimiter, async (req, res) => {
     try {
       const { category, configs } = req.body;
       if (!category || !Array.isArray(configs)) {
@@ -1056,16 +1056,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validatedConfigs = configs.map(c => insertHappyHoursPricingSchema.parse({ ...c, category }));
-      const saved = await storage.upsertHappyHoursPricing(category, validatedConfigs);
+      const saved = await req.storage.upsertHappyHoursPricing(category, validatedConfigs);
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const priceDetails = configs.map(c => `${c.duration}: ₹${c.price}${c.personCount > 1 ? ` (${c.personCount}p)` : ''}`).join(', ');
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'happy-hours-pricing',
           entityId: category,
@@ -1079,10 +1079,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/happy-hours-pricing/:category", requireAdmin, async (req, res) => {
+  app.delete("/api/happy-hours-pricing/:category", publicApiLimiter, async (req, res) => {
     try {
       const { category } = req.params;
-      await storage.deleteHappyHoursPricing(category);
+      await req.storage.deleteHappyHoursPricing(category);
       res.json({ success: true, message: `Deleted happy hours pricing for ${category}` });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1090,30 +1090,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  app.get("/api/food-items", requireAuth, async (req, res) => {
+  app.get("/api/food-items", publicApiLimiter, async (req, res) => {
     try {
-      const items = await storage.getAllFoodItems();
+      const items = await req.storage.getAllFoodItems();
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/food-items", requireAuth, async (req, res) => {
+  app.post("/api/food-items", publicApiLimiter, async (req, res) => {
     try {
       const item = insertFoodItemSchema.parse(req.body);
-      const created = await storage.createFoodItem(item);
+      const created = await req.storage.createFoodItem(item);
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const categoryInfo = item.category === 'trackable' ? 'trackable inventory' : 'non-trackable';
         const stockInfo = item.category === 'trackable' ? `, initial stock: ${item.currentStock || 0}, min level: ${item.minStockLevel || 10}` : '';
         const supplierInfo = item.supplier ? `, supplier: ${item.supplier}` : '';
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'create',
           entityType: 'food-item',
           entityId: created.id,
@@ -1127,23 +1127,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/food-items/:id", requireAuth, async (req, res) => {
+  app.patch("/api/food-items/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
       const item = insertFoodItemSchema.parse(req.body);
-      const updated = await storage.updateFoodItem(id, item);
+      const updated = await req.storage.updateFoodItem(id, item);
       if (!updated) {
         return res.status(404).json({ message: "Food item not found" });
       }
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const stockInfo = item.category === 'trackable' ? `, stock: ${item.currentStock || 0}/${item.minStockLevel || 10} (current/min)` : '';
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'food-item',
           entityId: id,
@@ -1157,25 +1157,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/food-items/:id", requireAuth, async (req, res) => {
+  app.delete("/api/food-items/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const items = await storage.getAllFoodItems();
+      const items = await req.storage.getAllFoodItems();
       const foodItem = items.find(f => f.id === id);
       
-      const deleted = await storage.deleteFoodItem(id);
+      const deleted = await req.storage.deleteFoodItem(id);
       if (!deleted) {
         return res.status(404).json({ message: "Food item not found" });
       }
       
       // Log the admin activity
-      if (req.session.userId && req.session.username && req.session.role && foodItem) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role && foodItem) {
         const stockInfo = foodItem.category === 'trackable' ? `, had ${foodItem.currentStock} units in stock` : '';
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'delete',
           entityType: 'food-item',
           entityId: id,
@@ -1189,29 +1189,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/food-items/:id/adjust-stock", requireAuth, async (req, res) => {
+  app.post("/api/food-items/:id/adjust-stock", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
       const { quantity, type, costPrice, supplier, expiryDate, notes } = schema.stockAdjustmentSchema.parse({ ...req.body, foodId: id });
       
       const batchData = type === 'add' ? { costPrice, supplier, expiryDate, notes } : undefined;
-      const updated = await storage.adjustStock(id, quantity, type, batchData);
+      const updated = await req.storage.adjustStock(id, quantity, type, batchData);
       if (!updated) {
         return res.status(404).json({ message: "Food item not found" });
       }
       
       // Log the activity
-      if (req.session.userId && req.session.username && req.session.role) {
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
         const oldStock = type === 'add' ? updated.currentStock - quantity : updated.currentStock + quantity;
         const stockStatus = updated.currentStock <= updated.minStockLevel ? ' (⚠️ LOW STOCK)' : '';
         const supplierInfo = supplier ? `, supplier: ${supplier}` : '';
         const expiryInfo = expiryDate ? `, expires: ${new Date(expiryDate).toLocaleDateString('en-IN')}` : '';
         const notesInfo = notes ? `, notes: ${notes}` : '';
         
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'food-inventory',
           entityId: id,
@@ -1230,28 +1230,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/food-items/low-stock", requireAuth, async (req, res) => {
+  app.get("/api/food-items/low-stock", publicApiLimiter, async (req, res) => {
     try {
-      const items = await storage.getLowStockItems();
+      const items = await req.storage.getLowStockItems();
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/food-items/inventory", requireAuth, async (req, res) => {
+  app.get("/api/food-items/inventory", publicApiLimiter, async (req, res) => {
     try {
-      const items = await storage.getInventoryItems();
+      const items = await req.storage.getInventoryItems();
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/food-items/:id/add-to-inventory", requireAuth, async (req, res) => {
+  app.post("/api/food-items/:id/add-to-inventory", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const item = await storage.getFoodItem(id);
+      const item = await req.storage.getFoodItem(id);
       if (!item) {
         return res.status(404).json({ message: "Food item not found" });
       }
@@ -1260,16 +1260,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Item is already in inventory" });
       }
       
-      const updated = await storage.addToInventory(id);
+      const updated = await req.storage.addToInventory(id);
       if (!updated) {
         return res.status(404).json({ message: "Food item not found" });
       }
       
-      if (req.session.userId && req.session.username && req.session.role) {
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'food-inventory',
           entityId: id,
@@ -1283,19 +1283,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/food-items/:id/remove-from-inventory", requireAuth, async (req, res) => {
+  app.post("/api/food-items/:id/remove-from-inventory", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.removeFromInventory(id);
+      const updated = await req.storage.removeFromInventory(id);
       if (!updated) {
         return res.status(404).json({ message: "Food item not found" });
       }
       
-      if (req.session.userId && req.session.username && req.session.role) {
-        await storage.createActivityLog({
-          userId: req.session.userId,
-          username: req.session.username,
-          userRole: req.session.role,
+      if (req.session.user?.id && req.session.user?.username && req.session.user?.role) {
+        await req.storage.createActivityLog({
+          userId: req.session.user?.id,
+          username: req.session.user?.username,
+          userRole: req.session.user?.role,
           action: 'update',
           entityType: 'food-inventory',
           entityId: id,
@@ -1309,57 +1309,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/food-items/reorder-list", requireAuth, async (req, res) => {
+  app.get("/api/food-items/reorder-list", publicApiLimiter, async (req, res) => {
     try {
-      const items = await storage.getReorderList();
+      const items = await req.storage.getReorderList();
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/food-items/expiring", requireAuth, async (req, res) => {
+  app.get("/api/food-items/expiring", publicApiLimiter, async (req, res) => {
     try {
       const daysAhead = parseInt(req.query.days as string) || 7;
-      const items = await storage.getExpiringItems(daysAhead);
+      const items = await req.storage.getExpiringItems(daysAhead);
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/stock-batches", requireAuth, async (req, res) => {
+  app.get("/api/stock-batches", publicApiLimiter, async (req, res) => {
     try {
-      const batches = await storage.getAllStockBatches();
+      const batches = await req.storage.getAllStockBatches();
       res.json(batches);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/stock-batches/:foodItemId", requireAuth, async (req, res) => {
+  app.get("/api/stock-batches/:foodItemId", publicApiLimiter, async (req, res) => {
     try {
       const { foodItemId } = req.params;
-      const batches = await storage.getStockBatchesByFoodItem(foodItemId);
+      const batches = await req.storage.getStockBatchesByFoodItem(foodItemId);
       res.json(batches);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/expenses", requireAuth, async (req, res) => {
+  app.get("/api/expenses", publicApiLimiter, async (req, res) => {
     try {
-      const expenses = await storage.getAllExpenses();
+      const expenses = await req.storage.getAllExpenses();
       res.json(expenses);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/expenses", requireAuth, async (req, res) => {
+  app.post("/api/expenses", publicApiLimiter, async (req, res) => {
     try {
       const expense = insertExpenseSchema.parse(req.body);
-      const created = await storage.createExpense(expense);
+      const created = await req.storage.createExpense(expense);
       
       // Send notification for new expense
       await notifyExpenseAdded(created.id, created.category, created.amount);
@@ -1370,11 +1370,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/expenses/:id", requireAuth, async (req, res) => {
+  app.patch("/api/expenses/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
       const expense = insertExpenseSchema.parse(req.body);
-      const updated = await storage.updateExpense(id, expense);
+      const updated = await req.storage.updateExpense(id, expense);
       if (!updated) {
         return res.status(404).json({ message: "Expense not found" });
       }
@@ -1384,10 +1384,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/expenses/:id", requireAuth, async (req, res) => {
+  app.delete("/api/expenses/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteExpense(id);
+      const deleted = await req.storage.deleteExpense(id);
       if (!deleted) {
         return res.status(404).json({ message: "Expense not found" });
       }
@@ -1398,9 +1398,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity Logs Routes
-  app.get("/api/activity-logs", requireAuth, async (req, res) => {
+  app.get("/api/activity-logs", publicApiLimiter, async (req, res) => {
     try {
-      const logs = await storage.getAllActivityLogs();
+      const logs = await req.storage.getAllActivityLogs();
       res.json(logs);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1408,47 +1408,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Notification Routes
-  app.get("/api/notifications", requireAuth, async (req, res) => {
+  app.get("/api/notifications", publicApiLimiter, async (req, res) => {
     try {
-      const notifications = await storage.getAllNotifications();
+      const notifications = await req.storage.getAllNotifications();
       res.json(notifications);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/notifications/unread", requireAuth, async (req, res) => {
+  app.get("/api/notifications/unread", publicApiLimiter, async (req, res) => {
     try {
-      const notifications = await storage.getUnreadNotifications();
+      const notifications = await req.storage.getUnreadNotifications();
       res.json(notifications);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+  app.get("/api/notifications/unread-count", publicApiLimiter, async (req, res) => {
     try {
-      const count = await storage.getUnreadCount();
+      const count = await req.storage.getUnreadCount();
       res.json({ count });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/notifications", requireAuth, async (req, res) => {
+  app.post("/api/notifications", publicApiLimiter, async (req, res) => {
     try {
       const notification = insertNotificationSchema.parse(req.body);
-      const created = await storage.createNotification(notification);
+      const created = await req.storage.createNotification(notification);
       res.json(created);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
   });
 
-  app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
+  app.patch("/api/notifications/:id/read", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.markNotificationAsRead(id);
+      const updated = await req.storage.markNotificationAsRead(id);
       if (!updated) {
         return res.status(404).json({ message: "Notification not found" });
       }
@@ -1458,19 +1458,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/notifications/read-all", requireAuth, async (req, res) => {
+  app.patch("/api/notifications/read-all", publicApiLimiter, async (req, res) => {
     try {
-      await storage.markAllNotificationsAsRead();
+      await req.storage.markAllNotificationsAsRead();
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+  app.delete("/api/notifications/:id", publicApiLimiter, async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteNotification(id);
+      const deleted = await req.storage.deleteNotification(id);
       if (!deleted) {
         return res.status(404).json({ message: "Notification not found" });
       }
@@ -1483,8 +1483,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public Status Route (No Auth Required)
   app.get("/api/public/status", publicApiLimiter, async (req, res) => {
     try {
-      const allBookings = await storage.getAllBookings();
-      const deviceConfigs = await storage.getAllDeviceConfigs();
+      const allBookings = await req.storage.getAllBookings();
+      const deviceConfigs = await req.storage.getAllDeviceConfigs();
       
       const availability = deviceConfigs.map(config => {
         const activeBookings = allBookings.filter(booking => 
@@ -1513,8 +1513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WhatsApp Bot Routes
   app.get("/api/whatsapp/availability", publicApiLimiter, async (req, res) => {
     try {
-      const allBookings = await storage.getAllBookings();
-      const deviceConfigs = await storage.getAllDeviceConfigs();
+      const allBookings = await req.storage.getAllBookings();
+      const deviceConfigs = await req.storage.getAllDeviceConfigs();
       
       const now = new Date();
       
@@ -1560,8 +1560,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAvailabilityQuery = keywords.some(keyword => message.includes(keyword));
       
       if (isAvailabilityQuery) {
-        const allBookings = await storage.getAllBookings();
-        const deviceConfigs = await storage.getAllDeviceConfigs();
+        const allBookings = await req.storage.getAllBookings();
+        const deviceConfigs = await req.storage.getAllDeviceConfigs();
         
         const availability = deviceConfigs.map(config => {
           const activeBookings = allBookings.filter(booking => 
@@ -1606,7 +1606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/center-info", publicApiLimiter, async (req, res) => {
     try {
-      const info = await storage.getGamingCenterInfo();
+      const info = await req.storage.getGamingCenterInfo();
       res.json(info || null);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1615,7 +1615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/gallery", publicApiLimiter, async (req, res) => {
     try {
-      const images = await storage.getAllGalleryImages();
+      const images = await req.storage.getAllGalleryImages();
       res.json(images);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1624,7 +1624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/facilities", publicApiLimiter, async (req, res) => {
     try {
-      const facilities = await storage.getAllFacilities();
+      const facilities = await req.storage.getAllFacilities();
       res.json(facilities);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1633,7 +1633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/games", publicApiLimiter, async (req, res) => {
     try {
-      const games = await storage.getAllGames();
+      const games = await req.storage.getAllGames();
       res.json(games);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1642,8 +1642,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/availability", publicApiLimiter, async (req, res) => {
     try {
-      const allBookings = await storage.getAllBookings();
-      const deviceConfigs = await storage.getAllDeviceConfigs();
+      const allBookings = await req.storage.getAllBookings();
+      const deviceConfigs = await req.storage.getAllDeviceConfigs();
       
       const availability = deviceConfigs.map(config => {
         const activeBookings = allBookings.filter(booking => 
@@ -1672,7 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/consumer/pricing", publicApiLimiter, async (req, res) => {
     try {
-      const pricing = await storage.getAllPricingConfigs();
+      const pricing = await req.storage.getAllPricingConfigs();
       res.json(pricing);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1680,7 +1680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Data Retention Endpoints
-  app.get("/api/retention/config", requireAdmin, async (req, res) => {
+  app.get("/api/retention/config", publicApiLimiter, async (req, res) => {
     try {
       const config = await retentionService.getConfig();
       res.json(config);
@@ -1689,7 +1689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/retention/cleanup", requireAdmin, async (req, res) => {
+  app.post("/api/retention/cleanup", publicApiLimiter, async (req, res) => {
     try {
       const result = await cleanupScheduler.runNow();
       res.json({ 
@@ -1701,7 +1701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/retention/config", requireAdmin, async (req, res) => {
+  app.put("/api/retention/config", publicApiLimiter, async (req, res) => {
     try {
       const updateSchema = z.object({
         bookingHistoryDays: z.number().min(1).optional(),
@@ -1727,7 +1727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Neon Storage Metrics Endpoint
-  app.get("/api/storage/metrics", requireAdmin, async (req, res) => {
+  app.get("/api/storage/metrics", publicApiLimiter, async (req, res) => {
     try {
       const metrics = await fetchNeonStorageMetrics();
       res.json(metrics);
@@ -1750,7 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Maintenance Prediction Routes
-  app.get("/api/ai/maintenance/predictions", requireAuth, async (req, res) => {
+  app.get("/api/ai/maintenance/predictions", publicApiLimiter, async (req, res) => {
     try {
       const { generateMaintenancePredictions } = await import('./ai-maintenance');
       const predictions = await generateMaintenancePredictions();
@@ -1761,7 +1761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Traffic Prediction Routes
-  app.get("/api/ai/traffic/predictions", requireAuth, async (req, res) => {
+  app.get("/api/ai/traffic/predictions", publicApiLimiter, async (req, res) => {
     try {
       const { generateTrafficPredictions } = await import('./ai-traffic');
       const predictions = await generateTrafficPredictions();
@@ -1772,16 +1772,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  app.get("/api/maintenance", requireAuth, async (req, res) => {
+  app.get("/api/maintenance", publicApiLimiter, async (req, res) => {
     try {
-      const maintenanceRecords = await storage.getAllDeviceMaintenance();
+      const maintenanceRecords = await req.storage.getAllDeviceMaintenance();
       res.json(maintenanceRecords);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
-  app.post("/api/maintenance", requireAuth, async (req, res) => {
+  app.post("/api/maintenance", publicApiLimiter, async (req, res) => {
     try {
       const maintenanceSchema = z.object({
         category: z.string(),
@@ -1798,7 +1798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const validatedData = maintenanceSchema.parse(req.body);
-      const created = await storage.upsertDeviceMaintenance(validatedData);
+      const created = await req.storage.upsertDeviceMaintenance(validatedData);
       
       const { invalidateMaintenanceCache } = await import('./ai-maintenance');
       invalidateMaintenanceCache();
@@ -1812,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/maintenance/:category/:seatName/status", requireAuth, async (req, res) => {
+  app.put("/api/maintenance/:category/:seatName/status", publicApiLimiter, async (req, res) => {
     try {
       const { category, seatName } = req.params;
       const { status, notes } = req.body;
@@ -1821,7 +1821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Status is required" });
       }
 
-      const updated = await storage.updateDeviceMaintenanceStatus(
+      const updated = await req.storage.updateDeviceMaintenanceStatus(
         category,
         decodeURIComponent(seatName),
         status,
@@ -1841,7 +1841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/maintenance/:category/:seatName/report-issue", requireAuth, async (req, res) => {
+  app.post("/api/maintenance/:category/:seatName/report-issue", publicApiLimiter, async (req, res) => {
     try {
       const { category, seatName } = req.params;
       const { issueType } = req.body;
@@ -1851,12 +1851,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const decodedSeatName = decodeURIComponent(seatName);
-      const existing = await storage.getDeviceMaintenance(category, decodedSeatName);
+      const existing = await req.storage.getDeviceMaintenance(category, decodedSeatName);
 
       const currentIssues = existing?.issuesReported || 0;
       const updatedIssues = currentIssues + 1;
 
-      await storage.upsertDeviceMaintenance({
+      await req.storage.upsertDeviceMaintenance({
         category,
         seatName: decodedSeatName,
         totalUsageHours: existing?.totalUsageHours || 0,
@@ -1903,10 +1903,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/customer/:whatsappNumber/active-bookings", requireAuth, async (req, res) => {
+  app.get("/api/customer/:whatsappNumber/active-bookings", publicApiLimiter, async (req, res) => {
     try {
       const { whatsappNumber } = req.params;
-      const allBookings = await storage.getAllBookings();
+      const allBookings = await req.storage.getAllBookings();
       const activeBookings = allBookings.filter(booking => 
         booking.whatsappNumber === decodeURIComponent(whatsappNumber) && 
         (booking.status === 'running' || booking.status === 'paused')

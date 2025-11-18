@@ -19,13 +19,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children, user }: { children: ReactNode; user: User | null }) {
-  const isAdmin = user?.role === "admin";
-  const isStaff = user?.role === "staff";
+  // No authentication - everyone has admin access
+  const isAdmin = true;
+  const isStaff = false;
   
-  const isStaffOrAdmin = user?.role === "admin" || user?.role === "staff";
-  const canMakeChanges = isStaffOrAdmin ? true : true;
+  const canMakeChanges = true;
   const deviceRestricted = false;
-  const onboardingCompleted = user?.onboardingCompleted ?? true;
+  const onboardingCompleted = true;
 
   return (
     <AuthContext.Provider value={{ user, isAdmin, isStaff, canMakeChanges, deviceRestricted, onboardingCompleted }}>

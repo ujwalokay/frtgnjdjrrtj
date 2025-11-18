@@ -41,7 +41,7 @@ const statusConfig = {
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.available;
 
   return (
     <Badge variant="outline" className={config.className} data-testid={`badge-${status}`}>

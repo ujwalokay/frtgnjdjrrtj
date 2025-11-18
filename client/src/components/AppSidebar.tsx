@@ -184,12 +184,8 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {menuCategories.map((category) => {
-          const filteredItems = category.items.filter((item) => {
-            if (isStaff && item.adminOnly) {
-              return false;
-            }
-            return true;
-          });
+          // No authentication - show all items
+          const filteredItems = category.items;
 
           if (filteredItems.length === 0) return null;
 
