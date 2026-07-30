@@ -1,5 +1,25 @@
 # Airavoto Gaming Center POS Admin Panel
 
+## How to run
+
+- **Start:** `npm run dev` (workflow: "Start application") — serves on port 5000
+- **Database schema:** `npm run db:push` — pushes Drizzle schema to the Replit PostgreSQL database
+- **Build:** `npm run build` — compiles for production
+
+## Required secrets
+
+Set these in Replit Secrets before first run:
+- `ADMIN_USERNAME` — admin login username
+- `ADMIN_PASSWORD` — admin login password (min 8 chars); creates the admin account on first start
+- `SESSION_SECRET` — already set
+
+## Notes
+
+- Without `ADMIN_USERNAME`/`ADMIN_PASSWORD`, the app runs in guest/demo mode (in-memory storage per session)
+- `DATABASE_URL` is automatically provided by Replit's built-in PostgreSQL
+- Google OAuth is optional (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
+- The app allows iframe embedding from any origin (`frame-ancestors *`)
+
 ## Overview
 
 This project is a local, full-stack TypeScript web application designed as an admin panel for Airavoto Gaming Center's Point-of-Sale (POS) system. It manages gaming sessions across various device types (PC, PS5, VR, car simulators), handles walk-in and advance bookings, and provides comprehensive reporting, including an expense tracker. The application aims to streamline operations, manage inventory, track expenses, and improve customer service. It features a gaming-themed dark mode UI inspired by Discord and Steam. Key capabilities include dynamic device and pricing configuration, real-time session management (pause/resume, seat changes), a simplified customer loyalty program, tournament management, and a robust notification system.

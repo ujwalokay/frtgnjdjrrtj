@@ -86,6 +86,13 @@ app.use(
   })
 );
 
+// Allow embedding in iframes from any origin
+app.use((req, res, next) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Content-Security-Policy', "frame-ancestors *");
+  next();
+});
+
 // Request size limits to prevent DOS attacks
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));

@@ -28,7 +28,6 @@ import Timeline from "@/pages/Timeline";
 import History from "@/pages/History";
 import ActivityLogs from "@/pages/ActivityLogs";
 import NotFound from "@/pages/not-found";
-import { CursorTrail } from "@/components/CursorTrail";
 import { SplashScreen } from "@/components/SplashScreen";
 import { NetworkAlert } from "@/components/NetworkAlert";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -282,7 +281,6 @@ function App() {
                   onDismiss={handleDismiss}
                 />
                 <InactivityRefreshPrompt />
-                <CursorTrail />
                 <Toaster />
               </TooltipProvider>
             </TourProvider>
