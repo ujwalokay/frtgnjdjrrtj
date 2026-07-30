@@ -67,6 +67,7 @@ app.use(
         connectSrc: ["'self'"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
+        frameAncestors: ["*"],
         upgradeInsecureRequests: [],
       },
     } : false, // Disable CSP in development for Vite HMR
@@ -75,9 +76,8 @@ app.use(
       includeSubDomains: true,
       preload: true
     },
-    frameguard: {
-      action: 'deny'
-    },
+    // Disable X-Frame-Options so frame-ancestors in CSP takes sole control
+    frameguard: false,
     noSniff: true,
     xssFilter: true,
     referrerPolicy: {
@@ -85,13 +85,6 @@ app.use(
     }
   })
 );
-
-// Allow embedding in iframes from any origin
-app.use((req, res, next) => {
-  res.removeHeader('X-Frame-Options');
-  res.setHeader('Content-Security-Policy', "frame-ancestors *");
-  next();
-});
 
 // Request size limits to prevent DOS attacks
 app.use(express.json({ limit: '1mb' }));
